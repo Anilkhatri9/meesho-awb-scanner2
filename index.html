@@ -32,7 +32,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 <header><h1>📦 Meesho AWB Scanner</h1><p>AWB + Order/Packet QR • Forward & Return • Date-wise records • Excel export</p></header>
 
 <div class="wrap">
-<div class="notice">🔒 <b>Camera requires HTTPS.</b> Open this app from its HTTPS website link in Chrome, not from WhatsApp's internal viewer or a local HTML file.</div>
+<div class="notice">🔒 <b>Camera requires HTTPS.</b> Open this app from its HTTPS website link in Chrome, not from WhatsApp's internal viewer or a local HTML file.<br>🔊 <b>Scan feedback:</b> successful scans show a green message, play a confirmation sound, vibrate when supported, and pause scanning for 1.5 seconds.</div>
 
 <div class="grid">
 <section class="card">
@@ -48,7 +48,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 <button class="primary" id="startBtn" onclick="startScanner()">📷 Start Camera</button>
 <button class="secondary" onclick="stopScanner()">⏹ Stop</button>
 </div>
-<p class="hint">Scan AWB first. After AWB is detected, scan the Order ID / Packet QR. Record is saved automatically after the second scan.</p>
+<p class="hint">Scan AWB first → green success + sound → 1.5 sec pause → scan Order/Packet QR → green success + sound → 1.5 sec pause → next order.</p>
 
 <hr style="border:0;border-top:1px solid #eee;margin:16px 0">
 <label class="small">AWB Barcode Number</label>
@@ -107,12 +107,50 @@ const SCAN_PAUSE_MS=1500;
 function setMode(m){mode=m;document.getElementById('forwardBtn').classList.toggle('active',m==='Forward');document.getElementById('returnBtn').classList.toggle('active',m==='Return');clearFields();setStatus(m+' mode selected. Start camera and scan AWB.')}
 function setStatus(t){document.getElementById('status').textContent=t}
 let toastTimer;
-function showScanSuccess(message){
- const el=document.getElementById('scanToast');
- el.textContent='✓ '+message; el.classList.add('show');
- clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1600);
- if(navigator.vibrate) navigator.vibrate(100);
+let audioCtx=null;
+
+function prepareSuccessSound(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)return;
+    if(!audioCtx)audioCtx=new AC();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+  }catch(e){}
 }
+
+function playSuccessSound(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)return;
+    if(!audioCtx)audioCtx=new AC();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+
+    const t=audioCtx.currentTime;
+    const gain=audioCtx.createGain();
+    const osc=audioCtx.createOscillator();
+    osc.type='sine';
+    osc.frequency.setValueAtTime(880,t);
+    osc.frequency.setValueAtTime(1175,t+0.08);
+    gain.gain.setValueAtTime(0.0001,t);
+    gain.gain.exponentialRampToValueAtTime(0.16,t+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t+0.20);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t+0.22);
+  }catch(e){}
+}
+
+function showScanSuccess(message){
+  const el=document.getElementById('scanToast');
+  el.textContent='✓ '+message;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),1600);
+  playSuccessSound();
+  if(navigator.vibrate)navigator.vibrate([70,35,70]);
+}
+
 function save(){localStorage.setItem(KEY,JSON.stringify(records))}
 function now(){const d=new Date();return {date:d.toLocaleDateString('en-CA'),time:d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
