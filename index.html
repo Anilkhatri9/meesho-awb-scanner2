@@ -154,7 +154,7 @@ async function onScan(decodedText){
    addRecord();
    step='awb';
    setStatus('Saved ✓ Ready for next '+mode+' AWB');
-   await pause(1000);
+   await pause(3000);
  }
 }
 function pause(ms){return new Promise(r=>setTimeout(r,ms))}
