@@ -99,6 +99,10 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 const KEY='meesho_awb_records_v2';
 let records=JSON.parse(localStorage.getItem(KEY)||'[]');
 let mode='Forward', scanner=null, running=false, step='awb';
+let scanLocked=false;
+let lastScannedValue='';
+let lastScannedAt=0;
+const SCAN_PAUSE_MS=1500;
 
 function setMode(m){mode=m;document.getElementById('forwardBtn').classList.toggle('active',m==='Forward');document.getElementById('returnBtn').classList.toggle('active',m==='Return');clearFields();setStatus(m+' mode selected. Start camera and scan AWB.')}
 function setStatus(t){document.getElementById('status').textContent=t}
@@ -139,21 +143,41 @@ async function startScanner(){
  }
 }
 async function onScan(decodedText){
- if(!decodedText||!running)return;
+ if(!decodedText||!running||scanLocked)return;
+
+ const value=String(decodedText).trim();
+ const nowMs=Date.now();
+
+ // Ignore the same barcode if it is detected again immediately.
+ if(value===lastScannedValue && (nowMs-lastScannedAt)<SCAN_PAUSE_MS)return;
+
+ scanLocked=true;
+ lastScannedValue=value;
+ lastScannedAt=nowMs;
+
  if(step==='awb'){
-   document.getElementById('awb').value=decodedText;
-   showScanSuccess('AWB Successfully Scanned');
+   document.getElementById('awb').value=value;
+   successFeedback('AWB Successfully Scanned');
    step='order';
    setStatus('AWB scanned ✓ Now scan Order ID / Packet QR…');
-   await pause(900);
+
+   // Keep the camera locked briefly so the AWB cannot be read again.
+   await pause(SCAN_PAUSE_MS);
+   scanLocked=false;
  }else{
-   document.getElementById('order').value=decodedText;
-   showScanSuccess('Order / Packet QR Successfully Scanned');
+   document.getElementById('order').value=value;
+   successFeedback('Order / Packet QR Successfully Scanned');
    setStatus('Order/Packet scanned ✓ Saving…');
+
    await pause(250);
    addRecord();
    step='awb';
-   setStatus('Saved ✓ Ready for next '+mode+' AWB');
+
+   // Pause after the second scan before accepting the next barcode.
+   await pause(SCAN_PAUSE_MS);
+   lastScannedValue='';
+   scanLocked=false;
+   setStatus('Ready for next '+mode+' AWB');
  }
 }
 function pause(ms){return new Promise(r=>setTimeout(r,ms))}
