@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#5b35d5">
+<title>Meesho AWB Scanner</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}
+.scan-success{position:fixed;top:18px;left:50%;transform:translate(-50%,-140%);z-index:9999;background:#138a4b;color:#fff;padding:13px 20px;border-radius:12px;font-weight:800;font-size:15px;box-shadow:0 8px 25px #0005;transition:transform .22s ease;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.scan-success.show{transform:translate(-50%,0)}
+
+header{background:#5b35d5;color:#fff;padding:18px 16px}header h1{margin:0 0 5px;font-size:20px}header p{margin:0;font-size:12px}
+.wrap{max-width:1050px;margin:auto;padding:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:#fff;border-radius:15px;padding:15px;margin-bottom:14px;box-shadow:0 3px 15px #00000010}
+h2{font-size:16px;margin:0 0 12px}.mode{display:flex;gap:8px}.mode button{flex:1;padding:13px;border:1px solid #ddd;border-radius:10px;background:#fff;font-weight:700;font-size:15px}.mode .active{background:#5b35d5;color:#fff;border-color:#5b35d5}
+button{font-size:14px}.primary{background:#5b35d5;color:white;border:0;border-radius:10px;padding:12px 15px;font-weight:700}.secondary{background:#fff;border:1px solid #d7dce7;border-radius:10px;padding:11px 14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.field{width:100%;padding:12px;border:1px solid #d7dce7;border-radius:10px;font-size:15px}
+#reader{width:100%;min-height:300px;background:#111;border-radius:12px;overflow:hidden;margin-top:12px}
+#reader video{width:100%!important;height:auto!important;max-height:430px;object-fit:cover}
+.scan-toast{position:fixed;left:50%;top:22px;transform:translateX(-50%) translateY(-20px);background:#138a4b;color:#fff;padding:12px 20px;border-radius:12px;font-weight:700;font-size:15px;box-shadow:0 8px 25px #00000025;opacity:0;pointer-events:none;z-index:9999;transition:opacity .2s,transform .2s;white-space:nowrap}.scan-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.status{padding:10px;border-radius:9px;background:#f1efff;color:#4930a8;font-size:13px;margin:10px 0}
+.hint,.small{font-size:11px;color:#697386}.ok{color:#087443}.ret{color:#b42318}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}th{background:#fafafa}
+.tablewrap{overflow:auto;max-height:430px}.stat{display:flex;gap:8px}.statbox{flex:1;background:#fafafa;border-radius:10px;padding:13px}.statbox b{font-size:20px}.statbox div{font-size:11px;color:#697386}
+.notice{background:#fff8e1;border:1px solid #ffe08a;border-radius:10px;padding:10px;font-size:12px;line-height:1.5}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.wrap{padding:10px}}
+</style>
+</head>
+<body>
+<div id="scanToast" class="scan-toast">✓ Successfully Scanned</div>
+<header><h1>📦 Meesho AWB Scanner</h1><p>AWB + Order/Packet QR • Forward & Return • Date-wise records • Excel export</p></header>
+
+<div class="wrap">
+<div class="notice">🔒 <b>Camera requires HTTPS.</b> Open this app from its HTTPS website link in Chrome, not from WhatsApp's internal viewer or a local HTML file.</div>
+
+<div class="grid">
+<section class="card">
+<h2>1. Scan Order</h2>
+<div class="mode">
+<button id="forwardBtn" class="active" onclick="setMode('Forward')">📦 Forward Order</button>
+<button id="returnBtn" onclick="setMode('Return')">↩️ Return</button>
+</div>
+
+<div id="reader"></div>
+<div class="status" id="status">Ready. Select mode and start camera.</div>
+<div class="row">
+<button class="primary" id="startBtn" onclick="startScanner()">📷 Start Camera</button>
+<button class="secondary" onclick="stopScanner()">⏹ Stop</button>
+</div>
+<p class="hint">Scan AWB first. After AWB is detected, scan the Order ID / Packet QR. Record is saved automatically after the second scan.</p>
+
+<hr style="border:0;border-top:1px solid #eee;margin:16px 0">
+<label class="small">AWB Barcode Number</label>
+<input id="awb" class="field" placeholder="AWB will appear here">
+<br><br>
+<label class="small">Order ID / Packet QR Number</label>
+<input id="order" class="field" placeholder="Order/Packet number will appear here">
+<br><br>
+<div class="row">
+<button class="primary" onclick="saveManual()">💾 Save Manually</button>
+<button class="secondary" onclick="clearFields()">Clear</button>
+</div>
+</section>
+
+<section class="card">
+<h2>2. Today's Summary</h2>
+<div class="stat">
+<div class="statbox"><b id="total">0</b><div>Total</div></div>
+<div class="statbox"><b id="forward">0</b><div>Forward</div></div>
+<div class="statbox"><b id="returns">0</b><div>Return</div></div>
+</div>
+<br>
+<div class="row">
+<button class="primary" onclick="exportExcel()">📊 Excel (.xlsx)</button>
+<button class="secondary" onclick="exportCSV()">CSV Backup</button>
+</div>
+<br>
+<input id="csvInput" type="file" accept=".csv,text/csv" style="display:none" onchange="importCSV(event)">
+<button class="secondary" onclick="document.getElementById('csvInput').click()">📥 Import CSV Backup</button>
+</section>
+</div>
+
+<section class="card">
+<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
+<h2>📋 Records <span class="small" id="count"></span></h2>
+<div class="row">
+<input id="search" class="field" style="width:230px" placeholder="Search AWB / Order ID" oninput="render()">
+<select id="dateFilter" class="field" style="width:160px" onchange="render()"><option value="">All dates</option></select>
+</div>
+</div>
+<div class="tablewrap"><table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>AWB</th><th>Order / Packet</th><th></th></tr></thead><tbody id="tbody"></tbody></table></div>
+</section>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+const KEY='meesho_awb_records_v2';
+let records=JSON.parse(localStorage.getItem(KEY)||'[]');
+let mode='Forward', scanner=null, running=false, step='awb';
+
+function setMode(m){mode=m;document.getElementById('forwardBtn').classList.toggle('active',m==='Forward');document.getElementById('returnBtn').classList.toggle('active',m==='Return');clearFields();setStatus(m+' mode selected. Start camera and scan AWB.')}
+function setStatus(t){document.getElementById('status').textContent=t}
+let toastTimer;
+function showScanSuccess(message){
+ const el=document.getElementById('scanToast');
+ el.textContent='✓ '+message; el.classList.add('show');
+ clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),1600);
+ if(navigator.vibrate) navigator.vibrate(100);
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(records))}
+function now(){const d=new Date();return {date:d.toLocaleDateString('en-CA'),time:d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+
+function addRecord(){
+ const awb=document.getElementById('awb').value.trim(), order=document.getElementById('order').value.trim();
+ if(!awb||!order){setStatus('Please scan/enter both AWB and Order/Packet number.');return}
+ const n=now();records.unshift({id:crypto.randomUUID?crypto.randomUUID():Date.now()+Math.random(),date:n.date,time:n.time,type:mode,awb,order});
+ save();render();clearFields();setStatus('Saved ✓ '+mode+' record');step='awb';
+}
+function saveManual(){addRecord()}
+function clearFields(){document.getElementById('awb').value='';document.getElementById('order').value='';step='awb'}
+
+async function startScanner(){
+ if(running)return;
+ if(location.protocol!=='https:' && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
+   setStatus('Camera blocked: open this app from an HTTPS website link.');return;
+ }
+ try{
+  scanner=new Html5Qrcode("reader");
+  running=true;step='awb';
+  setStatus('Point camera at AWB barcode…');
+  await scanner.start({facingMode:"environment"},
+   {fps:12,qrbox:(vw,vh)=>({width:Math.min(vw*0.82,430),height:Math.min(vh*0.42,220)}),aspectRatio:1.777},
+   onScan,()=>{});
+ }catch(e){
+  running=false;setStatus('Camera could not start: '+e.message);
+ }
+}
+async function onScan(decodedText){
+ if(!decodedText||!running)return;
+ if(step==='awb'){
+   document.getElementById('awb').value=decodedText;
+   showScanSuccess('AWB Successfully Scanned');
+   step='order';
+   setStatus('AWB scanned ✓ Now scan Order ID / Packet QR…');
+   await pause(900);
+ }else{
+   document.getElementById('order').value=decodedText;
+   showScanSuccess('Order / Packet QR Successfully Scanned');
+   setStatus('Order/Packet scanned ✓ Saving…');
+   await pause(250);
+   addRecord();
+   step='awb';
+   setStatus('Saved ✓ Ready for next '+mode+' AWB');
+ }
+}
+function pause(ms){return new Promise(r=>setTimeout(r,ms))}
+async function stopScanner(){
+ if(scanner&&running){try{await scanner.stop()}catch(e){}try{scanner.clear()}catch(e){}}
+ scanner=null;running=false;setStatus('Camera stopped.');document.getElementById('reader').innerHTML='';
+}
+function render(){
+ const q=document.getElementById('search').value.trim().toLowerCase(), df=document.getElementById('dateFilter').value;
+ const list=records.filter(r=>(!q||[r.awb,r.order,r.type].join(' ').toLowerCase().includes(q))&&(!df||r.date===df));
+ document.getElementById('tbody').innerHTML=list.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.time)}</td><td class="${r.type==='Return'?'ret':'ok'}">${esc(r.type)}</td><td>${esc(r.awb)}</td><td>${esc(r.order)}</td><td><button class="secondary" onclick="del('${r.id}')">Delete</button></td></tr>`).join('');
+ document.getElementById('count').textContent='('+list.length+')';
+ const today=now().date, td=records.filter(r=>r.date===today);
+ document.getElementById('total').textContent=td.length;document.getElementById('forward').textContent=td.filter(r=>r.type==='Forward').length;document.getElementById('returns').textContent=td.filter(r=>r.type==='Return').length;
+ const old=df, dates=[...new Set(records.map(r=>r.date))].sort().reverse();
+ document.getElementById('dateFilter').innerHTML='<option value="">All dates</option>'+dates.map(d=>`<option>${d}</option>`).join('');
+ document.getElementById('dateFilter').value=old;
+}
+function del(id){if(confirm('Delete this record?')){records=records.filter(r=>r.id!==id);save();render()}}
+
+function csvEscape(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+function csvText(){return [ ['Date','Time','Type','AWB Number','Order ID / Packet QR','Record ID'], ...records.map(r=>[r.date,r.time,r.type,r.awb,r.order,r.id]) ].map(a=>a.map(csvEscape).join(',')).join('\\r\\n')}
+function download(name,data,type){const b=new Blob([data],{type});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove()}
+function exportCSV(){download('Meesho_Scan_Backup_'+now().date+'.csv','\\ufeff'+csvText(),'text/csv;charset=utf-8')}
+function exportExcel(){
+ if(!window.XLSX){setStatus('Excel library not loaded. Use CSV Backup.');return}
+ const data=records.map(r=>({Date:r.date,Time:r.time,Type:r.type,'AWB Number':r.awb,'Order ID / Packet QR':r.order,'Record ID':r.id}));
+ const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(data);XLSX.utils.book_append_sheet(wb,ws,'Scan Records');ws['!cols']=[{wch:14},{wch:12},{wch:12},{wch:24},{wch:30},{wch:36}];XLSX.writeFile(wb,'Meesho_Scan_Records.xlsx');setStatus('Excel downloaded ✓');
+}
+function importCSV(e){
+ const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+ rd.onload=()=>{const lines=rd.result.replace(/^\\ufeff/,'').split(/\\r?\\n/).filter(Boolean);if(lines.length<2)return;
+ const parse=s=>{let a=[],v='',q=false;for(let i=0;i<s.length;i++){let c=s[i];if(c=='"'){if(q&&s[i+1]=='"'){v+='"';i++}else q=!q}else if(c==','&&!q){a.push(v);v=''}else v+=c}a.push(v);return a};
+ lines.slice(1).forEach(l=>{let a=parse(l);if(a[0]&&a[3])records.push({id:a[5]||Date.now()+Math.random(),date:a[0],time:a[1],type:a[2]||'Forward',awb:a[3],order:a[4]||''})});save();render();setStatus('CSV imported ✓')}
+ rd.readAsText(f)
+}
+render();
+</script>
+</body>
+</html>
